@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SELF OS — Data Entry</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Highlight.js for JSON formatting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    
+    <!-- App Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">SELF OS <span class="subtitle">— Data Entry</span></h1>
+                <button class="menu-toggle" aria-label="Toggle Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+            </div>
+            <nav class="schema-nav" id="schema-nav">
+                <!-- Navigation items dynamically injected here -->
+            </nav>
+            <div class="sidebar-footer">
+                <div class="current-datetime" id="current-datetime"></div>
+                <div class="theme-selector-container">
+                    <label for="bg-selector" class="theme-label">Background</label>
+                    <select id="bg-selector" class="theme-selector">
+                        <option value="blueprint">Grid (Default)</option>
+                        <option value="solid-dark">Solid Dark</option>
+                        <option value="noise">Noise Texture</option>
+                        <option value="minimal">Minimal Lines</option>
+                    </select>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <div class="mobile-header">
+                <button class="menu-toggle mobile-only-toggle" aria-label="Toggle Menu">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
+                <div class="mobile-schema-select-wrapper">
+                    <select id="mobile-schema-selector" class="schema-selector-dropdown">
+                        <option value="" disabled selected>Select Schema...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-container" id="form-container">
+                <div class="empty-state">
+                    <h2>Select a schema to begin data entry</h2>
+                    <p>SELF OS system standing by.</p>
+                </div>
+            </div>
+            
+            <div class="bottom-actions" id="bottom-actions" style="display: none;">
+                <button id="btn-preview" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Preview JSON
+                </button>
+                
+                <div class="download-actions" style="display: flex; gap: 12px; align-items: center; margin-left: auto; flex-wrap: wrap; justify-content: flex-end;">
+                    <button id="btn-import-json" class="btn btn-secondary" title="Import from JSON file">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Import JSON
+                    </button>
+                    <button id="btn-download-default" class="btn btn-secondary" title="Standard browser download">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Download
+                    </button>
+                    <div class="save-folder-wrapper" style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <button id="btn-download-configured" class="btn btn-primary" title="Save directly to configured folder">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            Save to Folder
+                        </button>
+                        <button id="btn-select-folder" class="btn-text-link">Set Folder: None</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JSON Preview Overlay Panel -->
+    <div class="overlay-panel" id="preview-panel">
+        <div class="overlay-content">
+            <div class="overlay-header">
+                <h2>JSON Preview</h2>
+                <button class="btn-close" id="btn-close-preview" aria-label="Close Preview">✕</button>
+            </div>
+            <div class="overlay-body">
+                <pre><code class="language-json" id="json-preview-code"></code></pre>
+            </div>
+            <div class="overlay-footer">
+                <button id="btn-copy" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    Copy to Clipboard
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- External Libs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/schemas.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/formBuilder.js"></script>
+    <script src="js/preview.js"></script>
+    <script src="js/download.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

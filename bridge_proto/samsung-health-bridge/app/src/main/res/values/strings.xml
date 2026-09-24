@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">Samsung Health Bridge</string>
+    <string name="status_label">Status</string>
+    <string name="permissions_label">Permissions</string>
+    <string name="last_sync_label">Last Sync</string>
+    <string name="btn_request_permissions">Request Permissions</string>
+    <string name="btn_sync_now">Sync Now</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_unavailable">Samsung Health Unavailable</string>
+    <string name="status_not_installed">Samsung Health Not Installed</string>
+    <string name="permission_granted">✓</string>
+    <string name="permission_denied">✗</string>
+    <string name="permission_unknown">—</string>
+    <string name="never_synced">Never</string>
+    <string name="sync_in_progress">Syncing…</string>
+</resources>

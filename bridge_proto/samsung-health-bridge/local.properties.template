@@ -1,0 +1,19 @@
+# local.properties — DO NOT COMMIT THIS FILE
+# This file is for local development configuration only.
+# Add this file to .gitignore
+
+# Android SDK location
+# sdk.dir=C\:\\Users\\YourUser\\AppData\\Local\\Android\\Sdk
+
+# Backend API URLs
+# Development (default — your local dev server)
+API_BASE_URL_DEV=http://10.0.2.2:3000
+
+# Staging
+API_BASE_URL_STAGING=https://staging-api.selfmanagement.app
+
+# Production
+API_BASE_URL=https://api.selfmanagement.app
+
+# Development auth token (NEVER use in production)
+# DEV_AUTH_TOKEN=your-dev-token-here
