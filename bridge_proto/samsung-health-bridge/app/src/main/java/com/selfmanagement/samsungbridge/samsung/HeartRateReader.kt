@@ -1,19 +1,19 @@
 package com.selfmanagement.samsungbridge.samsung
 
 import android.util.Log
-import com.samsung.android.sdk.healthdata.HealthConstants
-import com.samsung.android.sdk.healthdata.HealthDataResolver
-import com.samsung.android.sdk.healthdata.HealthDataStore
+import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.entries.HeartRate
+import com.samsung.android.sdk.health.data.request.DataType
+import com.samsung.android.sdk.health.data.request.DataTypes
+import com.samsung.android.sdk.health.data.request.InstantTimeFilter
 import com.selfmanagement.samsungbridge.models.HeartRateRecord
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
- * Reads heart rate data from Samsung Health.
- *
- * Returns individual heart rate samples — the backend is responsible for
- * computing average/min/max from the raw data. This avoids incorrect
- * aggregation on the mobile side.
- *
- * All Samsung SDK interaction is encapsulated here.
+ * Reads heart rate samples from Samsung Health using Samsung Health Data SDK v1.1.0.
  */
 class HeartRateReader(
     private val healthDataStore: HealthDataStore
@@ -24,102 +24,73 @@ class HeartRateReader(
 
     /**
      * Read heart rate samples within the specified time range.
-     *
-     * @param startTimeMillis Start of the query range (UTC milliseconds)
-     * @param endTimeMillis End of the query range (UTC milliseconds)
-     * @param callback Called with the list of heart rate records
      */
     fun readHeartRate(
         startTimeMillis: Long,
         endTimeMillis: Long,
         callback: (List<HeartRateRecord>) -> Unit
     ) {
-        Log.d(TAG, "Reading heart rate from ${SamsungDataMapper.toIso8601(startTimeMillis)} " +
-                "to ${SamsungDataMapper.toIso8601(endTimeMillis)}")
+        val startInstant = Instant.ofEpochMilli(startTimeMillis)
+        val endInstant = Instant.ofEpochMilli(endTimeMillis)
 
-        try {
-            val resolver = HealthDataResolver(healthDataStore, null)
+        Log.d(TAG, "Reading heart rate from $startInstant to $endInstant")
 
-            val filter = HealthDataResolver.Filter.and(
-                HealthDataResolver.Filter.greaterThanEquals(
-                    HealthConstants.SessionMeasurement.START_TIME, startTimeMillis
-                ),
-                HealthDataResolver.Filter.lessThan(
-                    HealthConstants.SessionMeasurement.START_TIME, endTimeMillis
-                )
-            )
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val request = DataTypes.HEART_RATE.readDataRequestBuilder
+                    .setInstantTimeFilter(InstantTimeFilter.of(startInstant, endInstant))
+                    .build()
 
-            val request = HealthDataResolver.ReadRequest.Builder()
-                .setDataType(HealthConstants.HeartRate.HEALTH_DATA_TYPE)
-                .setProperties(arrayOf(
-                    HealthConstants.Common.UUID,
-                    HealthConstants.Common.DEVICE_UUID,
-                    HealthConstants.Common.PACKAGE_NAME,
-                    HealthConstants.SessionMeasurement.START_TIME,
-                    HealthConstants.SessionMeasurement.END_TIME,
-                    HealthConstants.SessionMeasurement.TIME_OFFSET,
-                    HealthConstants.HeartRate.HEART_RATE,
-                    HealthConstants.HeartRate.HEART_BEAT_COUNT,
-                    HealthConstants.HeartRate.MIN,
-                    HealthConstants.HeartRate.MAX
-                ))
-                .setFilter(filter)
-                .build()
-
-            resolver.read(request).setResultListener { result ->
+                val response = healthDataStore.readData(request)
                 val records = mutableListOf<HeartRateRecord>()
 
-                try {
-                    val iterator = result.iterator()
-                    while (iterator.hasNext()) {
-                        val data = iterator.next()
-                        try {
-                            val record = mapToHeartRateRecord(data)
-                            if (record != null) {
-                                records.add(record)
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Skipping malformed heart rate record", e)
+                for (point in response.dataList) {
+                    val uid = SamsungDataMapper.extractRecordId(point, "heart_rate")
+                    val device = SamsungDataMapper.extractDevice(point.dataSource)
+                    val pointStart = SamsungDataMapper.formatInstant(point.startTime, point.zoneOffset)
+                    val pointEnd = point.endTime?.let { SamsungDataMapper.formatInstant(it, point.zoneOffset) }
+                    val hrValue = point.getValue(DataType.HeartRateType.HEART_RATE)?.toDouble()
+                    val min = point.getValue(DataType.HeartRateType.MIN_HEART_RATE)?.toDouble()
+                    val max = point.getValue(DataType.HeartRateType.MAX_HEART_RATE)?.toDouble()
+                    val seriesData: List<HeartRate>? = point.getValue(DataType.HeartRateType.SERIES_DATA)
+
+                    if (hrValue != null) {
+                        records.add(
+                            HeartRateRecord(
+                                sourceRecordId = uid,
+                                sourceDevice = device,
+                                timestampStart = pointStart,
+                                timestampEnd = pointEnd,
+                                heartRate = hrValue,
+                                min = min,
+                                max = max,
+                                heartBeatCount = null
+                            )
+                        )
+                    } else if (!seriesData.isNullOrEmpty()) {
+                        seriesData.forEachIndexed { index, sample ->
+                            records.add(
+                                HeartRateRecord(
+                                    sourceRecordId = "${uid}_$index",
+                                    sourceDevice = device,
+                                    timestampStart = SamsungDataMapper.formatInstant(sample.startTime, point.zoneOffset),
+                                    timestampEnd = SamsungDataMapper.formatInstant(sample.endTime, point.zoneOffset),
+                                    heartRate = sample.heartRate.toDouble(),
+                                    min = sample.min.toDouble(),
+                                    max = sample.max.toDouble(),
+                                    heartBeatCount = null
+                                )
+                            )
                         }
                     }
-                    Log.d(TAG, "Retrieved ${records.size} heart rate records")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error iterating heart rate results", e)
-                } finally {
-                    result.close()
                 }
 
+                Log.d(TAG, "Retrieved ${records.size} heart rate records")
                 callback(records)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read heart rate", e)
+                callback(emptyList())
             }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read heart rate", e)
-            callback(emptyList())
         }
-    }
-
-    /**
-     * Map a Samsung HealthData record to our [HeartRateRecord] model.
-     * Returns null if the record is missing the heart rate value.
-     */
-    private fun mapToHeartRateRecord(
-        data: HealthDataResolver.ReadResult.DataIterator.HealthData
-    ): HeartRateRecord? {
-        val startTime = SamsungDataMapper.extractStartTime(data) ?: return null
-        val heartRate = SamsungDataMapper.safeGetFloat(data, HealthConstants.HeartRate.HEART_RATE)
-            ?.toDouble() ?: return null
-
-        return HeartRateRecord(
-            sourceRecordId = SamsungDataMapper.extractRecordId(
-                data, HealthConstants.HeartRate.HEALTH_DATA_TYPE
-            ),
-            sourceDevice = SamsungDataMapper.extractDevice(data),
-            timestampStart = startTime,
-            timestampEnd = SamsungDataMapper.extractEndTime(data),
-            heartRate = heartRate,
-            min = SamsungDataMapper.safeGetFloat(data, HealthConstants.HeartRate.MIN)?.toDouble(),
-            max = SamsungDataMapper.safeGetFloat(data, HealthConstants.HeartRate.MAX)?.toDouble(),
-            heartBeatCount = SamsungDataMapper.safeGetInt(data, HealthConstants.HeartRate.HEART_BEAT_COUNT)
-        )
     }
 }

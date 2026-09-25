@@ -1,21 +1,20 @@
 package com.selfmanagement.samsungbridge.samsung
 
 import android.util.Log
-import com.samsung.android.sdk.healthdata.HealthConstants
-import com.samsung.android.sdk.healthdata.HealthDataResolver
-import com.samsung.android.sdk.healthdata.HealthDataStore
+import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.entries.SleepSession
+import com.samsung.android.sdk.health.data.request.DataType
+import com.samsung.android.sdk.health.data.request.DataTypes
+import com.samsung.android.sdk.health.data.request.InstantTimeFilter
 import com.selfmanagement.samsungbridge.models.SleepRecord
 import com.selfmanagement.samsungbridge.models.SleepStageInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
- * Reads sleep data from Samsung Health.
- *
- * Retrieves both top-level Sleep sessions and detailed SleepStage records.
- * Does NOT fabricate a "sleep quality" value — only provides what Samsung
- * actually records.
- *
- * Handles sleep sessions that cross midnight correctly by using
- * Samsung's START_TIME/END_TIME + TIME_OFFSET.
+ * Reads sleep data from Samsung Health using Samsung Health Data SDK v1.1.0.
  */
 class SleepReader(
     private val healthDataStore: HealthDataStore
@@ -26,245 +25,81 @@ class SleepReader(
 
     /**
      * Read sleep records within the specified time range.
-     *
-     * Queries both Sleep sessions and their associated SleepStage records.
-     *
-     * @param startTimeMillis Start of the query range (UTC milliseconds)
-     * @param endTimeMillis End of the query range (UTC milliseconds)
-     * @param callback Called with the list of sleep records
      */
     fun readSleep(
         startTimeMillis: Long,
         endTimeMillis: Long,
         callback: (List<SleepRecord>) -> Unit
     ) {
-        Log.d(TAG, "Reading sleep from ${SamsungDataMapper.toIso8601(startTimeMillis)} " +
-                "to ${SamsungDataMapper.toIso8601(endTimeMillis)}")
+        val startInstant = Instant.ofEpochMilli(startTimeMillis)
+        val endInstant = Instant.ofEpochMilli(endTimeMillis)
 
-        try {
-            val resolver = HealthDataResolver(healthDataStore, null)
+        Log.d(TAG, "Reading sleep from $startInstant to $endInstant")
 
-            val filter = HealthDataResolver.Filter.and(
-                HealthDataResolver.Filter.greaterThanEquals(
-                    HealthConstants.SessionMeasurement.START_TIME, startTimeMillis
-                ),
-                HealthDataResolver.Filter.lessThan(
-                    HealthConstants.SessionMeasurement.END_TIME, endTimeMillis
-                )
-            )
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val request = DataTypes.SLEEP.readDataRequestBuilder
+                    .setInstantTimeFilter(InstantTimeFilter.of(startInstant, endInstant))
+                    .build()
 
-            val request = HealthDataResolver.ReadRequest.Builder()
-                .setDataType(HealthConstants.Sleep.HEALTH_DATA_TYPE)
-                .setProperties(arrayOf(
-                    HealthConstants.Common.UUID,
-                    HealthConstants.Common.DEVICE_UUID,
-                    HealthConstants.Common.PACKAGE_NAME,
-                    HealthConstants.SessionMeasurement.START_TIME,
-                    HealthConstants.SessionMeasurement.END_TIME,
-                    HealthConstants.SessionMeasurement.TIME_OFFSET
-                ))
-                .setFilter(filter)
-                .build()
+                val response = healthDataStore.readData(request)
+                val records = mutableListOf<SleepRecord>()
 
-            resolver.read(request).setResultListener { result ->
-                val sleepSessions = mutableListOf<SleepSessionData>()
+                for (point in response.dataList) {
+                    val uid = SamsungDataMapper.extractRecordId(point, "sleep")
+                    val device = SamsungDataMapper.extractDevice(point.dataSource)
+                    val pointStart = SamsungDataMapper.formatInstant(point.startTime, point.zoneOffset)
+                    val pointEnd = point.endTime?.let { SamsungDataMapper.formatInstant(it, point.zoneOffset) }
+                        ?: pointStart
 
-                try {
-                    val iterator = result.iterator()
-                    while (iterator.hasNext()) {
-                        val data = iterator.next()
-                        try {
-                            val session = parseSleepSession(data)
-                            if (session != null) {
-                                sleepSessions.add(session)
+                    val durationMs = point.getValue(DataType.SleepType.DURATION)?.toMillis()
+                        ?: (point.endTime?.toEpochMilli()?.minus(point.startTime.toEpochMilli()) ?: 0L)
+
+                    val sessions: List<SleepSession>? = point.getValue(DataType.SleepType.SESSIONS)
+                    val stageInfos = mutableListOf<SleepStageInfo>()
+
+                    sessions?.forEach { session ->
+                        session.stages?.forEach { stage ->
+                            val stageName = when (stage.stage) {
+                                DataType.SleepType.StageType.AWAKE -> SleepStageInfo.STAGE_AWAKE
+                                DataType.SleepType.StageType.LIGHT -> SleepStageInfo.STAGE_LIGHT
+                                DataType.SleepType.StageType.DEEP -> SleepStageInfo.STAGE_DEEP
+                                DataType.SleepType.StageType.REM -> SleepStageInfo.STAGE_REM
+                                else -> SleepStageInfo.STAGE_UNKNOWN
                             }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Skipping malformed sleep record", e)
-                        }
-                    }
-                    Log.d(TAG, "Retrieved ${sleepSessions.size} sleep sessions")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error iterating sleep results", e)
-                } finally {
-                    result.close()
-                }
+                            val sStart = SamsungDataMapper.formatInstant(stage.startTime, point.zoneOffset)
+                            val sEnd = SamsungDataMapper.formatInstant(stage.endTime, point.zoneOffset)
+                            val stageDurationMs = stage.endTime.toEpochMilli() - stage.startTime.toEpochMilli()
 
-                // Now read sleep stages for each session
-                if (sleepSessions.isNotEmpty()) {
-                    readSleepStages(startTimeMillis, endTimeMillis) { stages ->
-                        val records = sleepSessions.map { session ->
-                            val sessionStages = stages.filter { stage ->
-                                stage.parentSleepId == session.uuid
-                            }.map { stageData ->
+                            stageInfos.add(
                                 SleepStageInfo(
-                                    stageName = mapSleepStage(stageData.stage),
-                                    timestampStart = stageData.timestampStart,
-                                    timestampEnd = stageData.timestampEnd,
-                                    durationMs = stageData.durationMs
+                                    stageName = stageName,
+                                    timestampStart = sStart,
+                                    timestampEnd = sEnd,
+                                    durationMs = stageDurationMs
                                 )
-                            }
-
-                            SleepRecord(
-                                sourceRecordId = session.uuid,
-                                sourceDevice = session.deviceUuid,
-                                timestampStart = session.timestampStart,
-                                timestampEnd = session.timestampEnd,
-                                durationMs = session.durationMs,
-                                stages = sessionStages
                             )
                         }
-                        callback(records)
                     }
-                } else {
-                    callback(emptyList())
-                }
-            }
 
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read sleep", e)
-            callback(emptyList())
-        }
-    }
-
-    /**
-     * Read SleepStage records within a time range.
-     */
-    private fun readSleepStages(
-        startTimeMillis: Long,
-        endTimeMillis: Long,
-        callback: (List<SleepStageData>) -> Unit
-    ) {
-        try {
-            val resolver = HealthDataResolver(healthDataStore, null)
-
-            val filter = HealthDataResolver.Filter.and(
-                HealthDataResolver.Filter.greaterThanEquals(
-                    HealthConstants.SessionMeasurement.START_TIME, startTimeMillis
-                ),
-                HealthDataResolver.Filter.lessThan(
-                    HealthConstants.SessionMeasurement.END_TIME, endTimeMillis
-                )
-            )
-
-            val request = HealthDataResolver.ReadRequest.Builder()
-                .setDataType(HealthConstants.SleepStage.HEALTH_DATA_TYPE)
-                .setProperties(arrayOf(
-                    HealthConstants.Common.UUID,
-                    HealthConstants.SleepStage.SLEEP_ID,
-                    HealthConstants.SleepStage.STAGE,
-                    HealthConstants.SessionMeasurement.START_TIME,
-                    HealthConstants.SessionMeasurement.END_TIME,
-                    HealthConstants.SessionMeasurement.TIME_OFFSET
-                ))
-                .setFilter(filter)
-                .build()
-
-            resolver.read(request).setResultListener { result ->
-                val stages = mutableListOf<SleepStageData>()
-
-                try {
-                    val iterator = result.iterator()
-                    while (iterator.hasNext()) {
-                        val data = iterator.next()
-                        try {
-                            val stage = parseSleepStage(data)
-                            if (stage != null) {
-                                stages.add(stage)
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Skipping malformed sleep stage", e)
-                        }
-                    }
-                    Log.d(TAG, "Retrieved ${stages.size} sleep stages")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error iterating sleep stages", e)
-                } finally {
-                    result.close()
+                    records.add(
+                        SleepRecord(
+                            sourceRecordId = uid,
+                            sourceDevice = device,
+                            timestampStart = pointStart,
+                            timestampEnd = pointEnd,
+                            durationMs = durationMs,
+                            stages = stageInfos
+                        )
+                    )
                 }
 
-                callback(stages)
+                Log.d(TAG, "Retrieved ${records.size} sleep records")
+                callback(records)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read sleep", e)
+                callback(emptyList())
             }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read sleep stages", e)
-            callback(emptyList())
         }
     }
-
-    /**
-     * Parse a Samsung Sleep record into internal session data.
-     */
-    private fun parseSleepSession(
-        data: HealthDataResolver.ReadResult.DataIterator.HealthData
-    ): SleepSessionData? {
-        val uuid = SamsungDataMapper.extractRecordId(data, HealthConstants.Sleep.HEALTH_DATA_TYPE)
-        val startTime = SamsungDataMapper.extractStartTime(data) ?: return null
-        val endTime = SamsungDataMapper.extractEndTime(data) ?: return null
-
-        val startMs = SamsungDataMapper.safeGetLong(data, HealthConstants.SessionMeasurement.START_TIME) ?: return null
-        val endMs = SamsungDataMapper.safeGetLong(data, HealthConstants.SessionMeasurement.END_TIME) ?: return null
-
-        return SleepSessionData(
-            uuid = uuid,
-            deviceUuid = SamsungDataMapper.extractDevice(data),
-            timestampStart = startTime,
-            timestampEnd = endTime,
-            durationMs = endMs - startMs
-        )
-    }
-
-    /**
-     * Parse a Samsung SleepStage record.
-     */
-    private fun parseSleepStage(
-        data: HealthDataResolver.ReadResult.DataIterator.HealthData
-    ): SleepStageData? {
-        val startTime = SamsungDataMapper.extractStartTime(data) ?: return null
-        val endTime = SamsungDataMapper.extractEndTime(data) ?: return null
-
-        val startMs = SamsungDataMapper.safeGetLong(data, HealthConstants.SessionMeasurement.START_TIME) ?: return null
-        val endMs = SamsungDataMapper.safeGetLong(data, HealthConstants.SessionMeasurement.END_TIME) ?: return null
-        val stage = SamsungDataMapper.safeGetInt(data, HealthConstants.SleepStage.STAGE) ?: return null
-        val sleepId = SamsungDataMapper.safeGetString(data, HealthConstants.SleepStage.SLEEP_ID)
-
-        return SleepStageData(
-            parentSleepId = sleepId,
-            stage = stage,
-            timestampStart = startTime,
-            timestampEnd = endTime,
-            durationMs = endMs - startMs
-        )
-    }
-
-    /**
-     * Map Samsung sleep stage integer to human-readable name.
-     */
-    private fun mapSleepStage(stageCode: Int): String {
-        return when (stageCode) {
-            HealthConstants.SleepStage.STAGE_AWAKE -> SleepStageInfo.STAGE_AWAKE
-            HealthConstants.SleepStage.STAGE_LIGHT -> SleepStageInfo.STAGE_LIGHT
-            HealthConstants.SleepStage.STAGE_DEEP -> SleepStageInfo.STAGE_DEEP
-            // REM stage constant — Samsung uses value 40004 in some SDK versions
-            40004 -> SleepStageInfo.STAGE_REM
-            else -> "${SleepStageInfo.STAGE_UNKNOWN}_$stageCode"
-        }
-    }
-
-    /** Internal data class for parsed sleep sessions */
-    private data class SleepSessionData(
-        val uuid: String,
-        val deviceUuid: String?,
-        val timestampStart: String,
-        val timestampEnd: String,
-        val durationMs: Long
-    )
-
-    /** Internal data class for parsed sleep stages */
-    private data class SleepStageData(
-        val parentSleepId: String?,
-        val stage: Int,
-        val timestampStart: String,
-        val timestampEnd: String,
-        val durationMs: Long
-    )
 }

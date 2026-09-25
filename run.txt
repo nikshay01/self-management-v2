@@ -1,0 +1,16 @@
+# ==============================================================================
+# Samsung Health Bridge - Run & Test Commands
+# ==============================================================================
+
+# 1. Build the Development Debug APK
+cd "d:\nikshay\coding\big project\self-managerment-v2\bridge_proto\samsung-health-bridge"
+.\gradlew.bat assembleDevelopmentDebug
+
+# 2. Check connected physical phone
+adb devices
+
+# 3. Install the APK to phone
+adb install -r "app\build\outputs\apk\development\debug\app-development-debug.apk"
+
+# 4. View live logs in real time
+adb logcat -s "SamsungHealthMgr" "MainActivity" "StepReader" "HeartRateReader" "SleepReader" "ExerciseReader" "SyncManager"

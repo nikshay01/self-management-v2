@@ -1,19 +1,19 @@
 package com.selfmanagement.samsungbridge.samsung
 
 import android.util.Log
-import com.samsung.android.sdk.healthdata.HealthConstants
-import com.samsung.android.sdk.healthdata.HealthDataResolver
-import com.samsung.android.sdk.healthdata.HealthDataStore
+import com.samsung.android.sdk.health.data.HealthDataStore
+import com.samsung.android.sdk.health.data.data.entries.ExerciseSession
+import com.samsung.android.sdk.health.data.request.DataType
+import com.samsung.android.sdk.health.data.request.DataTypes
+import com.samsung.android.sdk.health.data.request.InstantTimeFilter
 import com.selfmanagement.samsungbridge.models.ExerciseRecord
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.time.Instant
 
 /**
- * Reads exercise/activity data from Samsung Health.
- *
- * Retrieves exercise sessions with available metrics: type, duration,
- * distance, calories, altitude gain. Only fields that Samsung actually
- * provides are populated — nothing is fabricated.
- *
- * All Samsung SDK interaction is encapsulated here.
+ * Reads exercise data from Samsung Health using Samsung Health Data SDK v1.1.0.
  */
 class ExerciseReader(
     private val healthDataStore: HealthDataStore
@@ -24,109 +24,74 @@ class ExerciseReader(
 
     /**
      * Read exercise records within the specified time range.
-     *
-     * @param startTimeMillis Start of the query range (UTC milliseconds)
-     * @param endTimeMillis End of the query range (UTC milliseconds)
-     * @param callback Called with the list of exercise records
      */
     fun readExercise(
         startTimeMillis: Long,
         endTimeMillis: Long,
         callback: (List<ExerciseRecord>) -> Unit
     ) {
-        Log.d(TAG, "Reading exercise from ${SamsungDataMapper.toIso8601(startTimeMillis)} " +
-                "to ${SamsungDataMapper.toIso8601(endTimeMillis)}")
+        val startInstant = Instant.ofEpochMilli(startTimeMillis)
+        val endInstant = Instant.ofEpochMilli(endTimeMillis)
 
-        try {
-            val resolver = HealthDataResolver(healthDataStore, null)
+        Log.d(TAG, "Reading exercise from $startInstant to $endInstant")
 
-            val filter = HealthDataResolver.Filter.and(
-                HealthDataResolver.Filter.greaterThanEquals(
-                    HealthConstants.SessionMeasurement.START_TIME, startTimeMillis
-                ),
-                HealthDataResolver.Filter.lessThan(
-                    HealthConstants.SessionMeasurement.START_TIME, endTimeMillis
-                )
-            )
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val request = DataTypes.EXERCISE.readDataRequestBuilder
+                    .setInstantTimeFilter(InstantTimeFilter.of(startInstant, endInstant))
+                    .build()
 
-            val request = HealthDataResolver.ReadRequest.Builder()
-                .setDataType(HealthConstants.Exercise.HEALTH_DATA_TYPE)
-                .setProperties(arrayOf(
-                    HealthConstants.Common.UUID,
-                    HealthConstants.Common.DEVICE_UUID,
-                    HealthConstants.Common.PACKAGE_NAME,
-                    HealthConstants.SessionMeasurement.START_TIME,
-                    HealthConstants.SessionMeasurement.END_TIME,
-                    HealthConstants.SessionMeasurement.TIME_OFFSET,
-                    HealthConstants.Exercise.EXERCISE_TYPE,
-                    HealthConstants.Exercise.EXERCISE_CUSTOM_TYPE,
-                    HealthConstants.Exercise.CALORIE,
-                    HealthConstants.Exercise.DURATION,
-                    HealthConstants.Exercise.DISTANCE,
-                    HealthConstants.Exercise.ALTITUDE_GAIN
-                ))
-                .setFilter(filter)
-                .build()
-
-            resolver.read(request).setResultListener { result ->
+                val response = healthDataStore.readData(request)
                 val records = mutableListOf<ExerciseRecord>()
 
-                try {
-                    val iterator = result.iterator()
-                    while (iterator.hasNext()) {
-                        val data = iterator.next()
-                        try {
-                            val record = mapToExerciseRecord(data)
-                            if (record != null) {
-                                records.add(record)
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Skipping malformed exercise record", e)
-                        }
+                for (point in response.dataList) {
+                    val uid = SamsungDataMapper.extractRecordId(point, "exercise")
+                    val device = SamsungDataMapper.extractDevice(point.dataSource)
+                    val pointStart = SamsungDataMapper.formatInstant(point.startTime, point.zoneOffset)
+                    val pointEnd = point.endTime?.let { SamsungDataMapper.formatInstant(it, point.zoneOffset) }
+                    val predefinedType = point.getValue(DataType.ExerciseType.EXERCISE_TYPE)
+                    val customTitle = point.getValue(DataType.ExerciseType.CUSTOM_TITLE)
+                    val sessions: List<ExerciseSession>? = point.getValue(DataType.ExerciseType.SESSIONS)
+
+                    var totalDurationMs = point.endTime?.let { it.toEpochMilli() - point.startTime.toEpochMilli() }
+                    var totalCalories: Double? = null
+                    var totalDistance: Double? = null
+                    var altitudeGain: Double? = null
+
+                    sessions?.firstOrNull()?.let { firstSession ->
+                        totalDurationMs = firstSession.duration?.toMillis() ?: totalDurationMs
+                        totalCalories = firstSession.calories.toDouble()
+                        totalDistance = firstSession.distance?.toDouble()
+                        altitudeGain = firstSession.altitudeGain?.toDouble()
                     }
-                    Log.d(TAG, "Retrieved ${records.size} exercise records")
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error iterating exercise results", e)
-                } finally {
-                    result.close()
+
+                    val typeName = predefinedType?.name?.lowercase()?.replace("_", " ")?.capitalize()
+                        ?: customTitle
+                        ?: "Exercise"
+
+                    records.add(
+                        ExerciseRecord(
+                            sourceRecordId = uid,
+                            sourceDevice = device,
+                            timestampStart = pointStart,
+                            timestampEnd = pointEnd,
+                            exerciseType = predefinedType?.ordinal,
+                            exerciseTypeName = typeName,
+                            customType = customTitle,
+                            durationMs = totalDurationMs,
+                            distanceM = totalDistance,
+                            caloriesKcal = totalCalories,
+                            altitudeGainM = altitudeGain
+                        )
+                    )
                 }
 
+                Log.d(TAG, "Retrieved ${records.size} exercise records")
                 callback(records)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to read exercise", e)
+                callback(emptyList())
             }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to read exercise", e)
-            callback(emptyList())
         }
-    }
-
-    /**
-     * Map a Samsung HealthData record to our [ExerciseRecord] model.
-     * Returns null if the record is missing the start time.
-     */
-    private fun mapToExerciseRecord(
-        data: HealthDataResolver.ReadResult.DataIterator.HealthData
-    ): ExerciseRecord? {
-        val startTime = SamsungDataMapper.extractStartTime(data) ?: return null
-
-        val exerciseType = SamsungDataMapper.safeGetInt(data, HealthConstants.Exercise.EXERCISE_TYPE)
-        val customType = SamsungDataMapper.safeGetString(data, HealthConstants.Exercise.EXERCISE_CUSTOM_TYPE)
-        val durationMs = SamsungDataMapper.safeGetLong(data, HealthConstants.Exercise.DURATION)
-
-        return ExerciseRecord(
-            sourceRecordId = SamsungDataMapper.extractRecordId(
-                data, HealthConstants.Exercise.HEALTH_DATA_TYPE
-            ),
-            sourceDevice = SamsungDataMapper.extractDevice(data),
-            timestampStart = startTime,
-            timestampEnd = SamsungDataMapper.extractEndTime(data),
-            exerciseType = exerciseType,
-            exerciseTypeName = exerciseType?.let { ExerciseRecord.exerciseTypeName(it) },
-            customType = customType,
-            durationMs = durationMs,
-            distanceM = SamsungDataMapper.safeGetFloat(data, HealthConstants.Exercise.DISTANCE)?.toDouble(),
-            caloriesKcal = SamsungDataMapper.safeGetFloat(data, HealthConstants.Exercise.CALORIE)?.toDouble(),
-            altitudeGainM = SamsungDataMapper.safeGetFloat(data, HealthConstants.Exercise.ALTITUDE_GAIN)?.toDouble()
-        )
     }
 }

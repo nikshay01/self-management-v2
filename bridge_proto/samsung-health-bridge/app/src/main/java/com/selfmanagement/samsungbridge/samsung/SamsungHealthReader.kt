@@ -1,7 +1,7 @@
 package com.selfmanagement.samsungbridge.samsung
 
 import android.util.Log
-import com.samsung.android.sdk.healthdata.HealthDataStore
+import com.samsung.android.sdk.health.data.HealthDataStore
 import com.selfmanagement.samsungbridge.models.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference

@@ -103,8 +103,7 @@ class MainActivity : AppCompatActivity() {
      * Check and display current permission state.
      */
     private fun checkPermissions() {
-        val state = healthManager.getPermissions()
-        if (state != null) {
+        healthManager.getPermissions { state ->
             runOnUiThread { updatePermissionDisplay(state) }
         }
     }
