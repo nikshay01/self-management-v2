@@ -14,3 +14,4 @@ adb install -r "app\build\outputs\apk\development\debug\app-development-debug.ap
 
 # 4. View live logs in real time
 adb logcat -s "SamsungHealthMgr" "MainActivity" "StepReader" "HeartRateReader" "SleepReader" "ExerciseReader" "SyncManager"
+run.txt
