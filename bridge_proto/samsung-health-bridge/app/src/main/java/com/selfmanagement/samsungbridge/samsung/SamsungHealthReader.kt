@@ -3,7 +3,6 @@ package com.selfmanagement.samsungbridge.samsung
 import android.util.Log
 import com.samsung.android.sdk.health.data.HealthDataStore
 import com.selfmanagement.samsungbridge.models.*
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -16,7 +15,8 @@ import java.util.concurrent.atomic.AtomicReference
  * SDK objects leak out of this layer.
  */
 class SamsungHealthReader(
-    private val healthDataStore: HealthDataStore
+    private val healthDataStore: HealthDataStore,
+    private val screenTimeReader: ScreenTimeReader
 ) {
     companion object {
         private const val TAG = "SamsungHealthReader"
@@ -34,7 +34,8 @@ class SamsungHealthReader(
         val steps: List<StepsRecord> = emptyList(),
         val heartRate: List<HeartRateRecord> = emptyList(),
         val sleep: List<SleepRecord> = emptyList(),
-        val exercise: List<ExerciseRecord> = emptyList()
+        val exercise: List<ExerciseRecord> = emptyList(),
+        val screenTime: ScreenTimeRecord = ScreenTimeRecord()
     ) {
         val totalRecords: Int
             get() = steps.size + heartRate.size + sleep.size + exercise.size
@@ -57,11 +58,17 @@ class SamsungHealthReader(
         fun toDisplaySummary(): String {
             val sb = StringBuilder()
 
-            // Steps summary
+            // Steps summary (daily totals when more than one day)
             if (steps.isNotEmpty()) {
                 val totalSteps = steps.sumOf { it.count }
                 sb.appendLine("Steps: $totalSteps")
-                sb.appendLine("  Records: ${steps.size}")
+                sb.appendLine("  Daily records: ${steps.size}")
+                if (steps.size > 1) {
+                    steps.forEach { day ->
+                        val dayLabel = day.timestampStart.take(10)
+                        sb.appendLine("  $dayLabel → ${day.count}")
+                    }
+                }
                 sb.appendLine()
             }
 
@@ -78,6 +85,11 @@ class SamsungHealthReader(
 
             // Sleep summary
             if (sleep.isNotEmpty()) {
+                sb.appendLine("Sleep sessions: ${sleep.size}")
+                val totalStages = sleep.sumOf { it.stages.size }
+                if (totalStages > 0) {
+                    sb.appendLine("  Stage records: $totalStages")
+                }
                 sleep.forEach { session ->
                     val durationHours = session.durationMs / 3600000
                     val durationMinutes = (session.durationMs % 3600000) / 60000
@@ -99,9 +111,12 @@ class SamsungHealthReader(
 
             // Exercise summary
             if (exercise.isNotEmpty()) {
+                sb.appendLine("Exercise sessions: ${exercise.size}")
                 exercise.forEach { ex ->
                     val typeName = ex.exerciseTypeName ?: ex.customType ?: "Unknown"
                     sb.appendLine("Exercise: $typeName")
+                    sb.appendLine("  Start: ${ex.timestampStart}")
+                    ex.timestampEnd?.let { sb.appendLine("  End: $it") }
                     ex.durationMs?.let {
                         val mins = it / 60000
                         sb.appendLine("  Duration: ${mins}m")
@@ -112,15 +127,75 @@ class SamsungHealthReader(
                     ex.caloriesKcal?.let {
                         sb.appendLine("  Calories: ${it.toInt()} kcal")
                     }
+                    val samples = ex.sessionDetails["samples"] as? List<*>
+                    if (!samples.isNullOrEmpty()) sb.appendLine("  Data samples: ${samples.size}")
+                    val route = ex.sessionDetails["route"] as? List<*>
+                    if (!route.isNullOrEmpty()) sb.appendLine("  Route points: ${route.size}")
+                    ex.sessionDetails.entries
+                        .filter { it.key !in setOf("start_time", "end_time", "samples", "route", "swimming") }
+                        .forEach { (key, value) -> sb.appendLine("  $key: $value") }
+                    (ex.sessionDetails["swimming"] as? Map<*, *>)?.let { sb.appendLine("  Swimming: $it") }
                     sb.appendLine()
                 }
             }
 
-            if (sb.isEmpty()) {
-                sb.append("No data available for the selected time range.")
+            // Device and app screen-time summary
+            sb.appendLine("Screen time:")
+            if (!screenTime.accessGranted) {
+                sb.appendLine("  Usage Access is not granted. Use Grant Screen Time Access to enable it.")
+            } else {
+                sb.appendLine("  Device interactive: ${formatDuration(screenTime.totalScreenInteractiveMs)}")
+                sb.appendLine("  Combined app foreground: ${formatDuration(screenTime.totalAppForegroundMs)}")
+                sb.appendLine("  Combined app visible: ${formatDuration(screenTime.totalAppVisibleMs)}")
+                sb.appendLine("  Combined foreground service: ${formatDuration(screenTime.totalAppForegroundServiceMs)}")
+                sb.appendLine("  Apps with usage: ${screenTime.apps.size}")
+                screenTime.error?.let { sb.appendLine("  Read warning: $it") }
+                if (screenTime.dailyScreenInteractive.isNotEmpty()) {
+                    sb.appendLine("  Device interactive by day:")
+                    screenTime.dailyScreenInteractive.forEach { day ->
+                        sb.appendLine("    ${day.localDate}: ${formatDuration(day.interactiveMs)}")
+                    }
+                }
+                if (screenTime.apps.isNotEmpty()) {
+                    sb.appendLine("  App usage:")
+                    screenTime.apps.forEach { app ->
+                        sb.appendLine("    ${app.appName} (${app.packageName})")
+                        sb.appendLine("      Foreground: ${formatDuration(app.totalForegroundMs)}")
+                        sb.appendLine("      Visible: ${formatDuration(app.totalVisibleMs)}")
+                        if (app.totalForegroundServiceMs > 0L) {
+                            sb.appendLine("      Foreground service: ${formatDuration(app.totalForegroundServiceMs)}")
+                        }
+                        app.lastUsedAt?.let { sb.appendLine("      Last used: $it") }
+                        app.lastVisibleAt?.let { sb.appendLine("      Last visible: $it") }
+                        app.lastForegroundServiceUsedAt?.let { sb.appendLine("      Last foreground service: $it") }
+                        app.dailyUsage.forEach { day ->
+                            sb.appendLine(
+                                "      ${day.localDate}: foreground ${formatDuration(day.foregroundMs)}, " +
+                                    "visible ${formatDuration(day.visibleMs)}, " +
+                                    "foreground service ${formatDuration(day.foregroundServiceMs)}"
+                            )
+                            day.lastUsedAt?.let { sb.appendLine("        Last used: $it") }
+                            day.lastVisibleAt?.let { sb.appendLine("        Last visible: $it") }
+                            day.lastForegroundServiceUsedAt?.let { sb.appendLine("        Last foreground service: $it") }
+                        }
+                    }
+                }
+            }
+
+            if (steps.isEmpty() && heartRate.isEmpty() && sleep.isEmpty() && exercise.isEmpty() &&
+                screenTime.accessGranted && screenTime.totalScreenInteractiveMs == 0L && screenTime.apps.isEmpty()
+            ) {
+                sb.insert(0, "No Samsung Health or screen-time data available for the selected time range.\n\n")
             }
 
             return sb.toString().trimEnd()
+        }
+
+        private fun formatDuration(durationMs: Long): String {
+            val totalMinutes = durationMs / 60000L
+            val hours = totalMinutes / 60L
+            val minutes = totalMinutes % 60L
+            return if (hours > 0L) "${hours}h ${minutes}m" else "${minutes}m"
         }
     }
 
@@ -132,7 +207,14 @@ class SamsungHealthReader(
         endTimeMillis: Long,
         callback: (List<StepsRecord>) -> Unit
     ) {
-        stepReader.readSteps(startTimeMillis, endTimeMillis, callback)
+        readSteps(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    fun readSteps(
+        range: SyncTimeRange,
+        callback: (List<StepsRecord>) -> Unit
+    ) {
+        stepReader.readSteps(range, callback)
     }
 
     /**
@@ -154,7 +236,14 @@ class SamsungHealthReader(
         endTimeMillis: Long,
         callback: (List<HeartRateRecord>) -> Unit
     ) {
-        heartRateReader.readHeartRate(startTimeMillis, endTimeMillis, callback)
+        readHeartRate(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    fun readHeartRate(
+        range: SyncTimeRange,
+        callback: (List<HeartRateRecord>) -> Unit
+    ) {
+        heartRateReader.readHeartRate(range, callback)
     }
 
     /**
@@ -165,7 +254,14 @@ class SamsungHealthReader(
         endTimeMillis: Long,
         callback: (List<SleepRecord>) -> Unit
     ) {
-        sleepReader.readSleep(startTimeMillis, endTimeMillis, callback)
+        readSleep(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    fun readSleep(
+        range: SyncTimeRange,
+        callback: (List<SleepRecord>) -> Unit
+    ) {
+        sleepReader.readSleep(range, callback)
     }
 
     /**
@@ -176,7 +272,14 @@ class SamsungHealthReader(
         endTimeMillis: Long,
         callback: (List<ExerciseRecord>) -> Unit
     ) {
-        exerciseReader.readExercise(startTimeMillis, endTimeMillis, callback)
+        readExercise(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    fun readExercise(
+        range: SyncTimeRange,
+        callback: (List<ExerciseRecord>) -> Unit
+    ) {
+        exerciseReader.readExercise(range, callback)
     }
 
     /**
@@ -194,15 +297,25 @@ class SamsungHealthReader(
         endTimeMillis: Long,
         callback: (ReadAllResult) -> Unit
     ) {
-        Log.d(TAG, "Reading all data types")
+        readAll(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    /**
+     * Read ALL data types within [range].
+     */
+    fun readAll(
+        range: SyncTimeRange,
+        callback: (ReadAllResult) -> Unit
+    ) {
+        Log.i(TAG, "Requested range: start=${range.startDateTime} end=${range.endDateTime} zone=${range.zoneId}")
 
         val stepsRef = AtomicReference<List<StepsRecord>>(emptyList())
         val hrRef = AtomicReference<List<HeartRateRecord>>(emptyList())
         val sleepRef = AtomicReference<List<SleepRecord>>(emptyList())
         val exerciseRef = AtomicReference<List<ExerciseRecord>>(emptyList())
+        val screenTimeRef = AtomicReference(ScreenTimeRecord())
 
-        // Track completion of all four reads
-        val remaining = java.util.concurrent.atomic.AtomicInteger(4)
+        val remaining = java.util.concurrent.atomic.AtomicInteger(5)
 
         val checkDone = {
             if (remaining.decrementAndGet() == 0) {
@@ -210,30 +323,44 @@ class SamsungHealthReader(
                     steps = stepsRef.get(),
                     heartRate = hrRef.get(),
                     sleep = sleepRef.get(),
-                    exercise = exerciseRef.get()
+                    exercise = exerciseRef.get(),
+                    screenTime = screenTimeRef.get()
                 )
-                Log.d(TAG, "All reads complete — total records: ${result.totalRecords}")
+                val stageCount = result.sleep.sumOf { it.stages.size }
+                Log.i(TAG, "Steps records: ${result.steps.size}")
+                Log.i(TAG, "Heart rate samples: ${result.heartRate.size}")
+                Log.i(TAG, "Sleep sessions: ${result.sleep.size}")
+                Log.i(TAG, "Sleep stages: $stageCount")
+                Log.i(TAG, "Exercise sessions: ${result.exercise.size}")
+                Log.i(TAG, "Total normalized records: ${result.totalRecords}")
+                Log.i(TAG, "Screen-time apps: ${result.screenTime.apps.size}")
+                Log.i(TAG, "Screen interactive milliseconds: ${result.screenTime.totalScreenInteractiveMs}")
                 callback(result)
             }
         }
 
-        readSteps(startTimeMillis, endTimeMillis) { records ->
+        readSteps(range) { records ->
             stepsRef.set(records)
             checkDone()
         }
 
-        readHeartRate(startTimeMillis, endTimeMillis) { records ->
+        readHeartRate(range) { records ->
             hrRef.set(records)
             checkDone()
         }
 
-        readSleep(startTimeMillis, endTimeMillis) { records ->
+        readSleep(range) { records ->
             sleepRef.set(records)
             checkDone()
         }
 
-        readExercise(startTimeMillis, endTimeMillis) { records ->
+        readExercise(range) { records ->
             exerciseRef.set(records)
+            checkDone()
+        }
+
+        screenTimeReader.read(range) { result ->
+            screenTimeRef.set(result)
             checkDone()
         }
     }

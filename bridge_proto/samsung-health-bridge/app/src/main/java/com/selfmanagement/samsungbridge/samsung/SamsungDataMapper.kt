@@ -4,6 +4,7 @@ import com.samsung.android.sdk.health.data.data.DataSource
 import com.samsung.android.sdk.health.data.data.HealthDataPoint
 import com.selfmanagement.samsungbridge.models.HealthRecord
 import java.time.Instant
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -35,6 +36,14 @@ object SamsungDataMapper {
     fun formatInstant(instant: Instant, zoneOffset: ZoneOffset? = null): String {
         val offset = zoneOffset ?: ZoneOffset.UTC
         return OffsetDateTime.ofInstant(instant, offset).format(isoFormatter)
+    }
+
+    /**
+     * Format a local date-time in the given zone as ISO-8601 with offset.
+     * Used for daily aggregates so calendar dates match the device timezone.
+     */
+    fun formatLocalDateTime(localDateTime: LocalDateTime, zoneId: ZoneId): String {
+        return localDateTime.atZone(zoneId).toOffsetDateTime().format(isoFormatter)
     }
 
     /**

@@ -1,159 +1,394 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/dashboard_background"
+    android:clipToPadding="false"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp">
+        android:paddingStart="20dp"
+        android:paddingTop="28dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="36dp">
 
-        <!-- Title -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.12"
+            android:text="SELF MANAGEMENT  /  HEALTH"
+            android:textColor="@color/accent_teal"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Samsung Health Bridge"
-            android:textSize="24sp"
-            android:textStyle="bold"
+            android:layout_marginTop="7dp"
+            android:text="Your health"
+            android:textColor="@color/text_primary"
+            android:textSize="32sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="20dp"
+            android:text="Samsung Health and device usage, together."
+            android:textColor="@color/text_secondary"
+            android:textSize="15sp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/card_surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:id="@+id/tvConnectionStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Samsung Health: Connecting…"
+                    android:textColor="@color/accent_teal"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPermissionSummary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="Checking data access…"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvLastSync"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Last upload: Never"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnTogglePermissions"
+                    style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/accent_teal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:layout_gravity="start"
+                    android:layout_marginTop="8dp"
+                    android:text="Manage data access"
+                    android:textAllCaps="false"
+                    app:icon="@android:drawable/ic_menu_manage"
+                    app:iconGravity="textStart"
+                    app:iconPadding="8dp" />
+
+                <LinearLayout
+                    android:id="@+id/llPermissionDetails"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView android:id="@+id/tvPermSteps" style="@style/PermissionLine" android:text="Steps: —" />
+                    <TextView android:id="@+id/tvPermHeartRate" style="@style/PermissionLine" android:text="Heart rate: —" />
+                    <TextView android:id="@+id/tvPermSleep" style="@style/PermissionLine" android:text="Sleep: —" />
+                    <TextView android:id="@+id/tvPermExercise" style="@style/PermissionLine" android:text="Exercise: —" />
+                    <TextView android:id="@+id/tvPermExerciseLocation" style="@style/PermissionLine" android:text="Exercise routes: —" />
+                    <TextView android:id="@+id/tvPermScreenTime" style="@style/PermissionLine" android:text="Screen time: —" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnRequestPermissions"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:textColor="@color/accent_teal" app:strokeColor="@color/card_stroke"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="10dp"
+                        android:text="Samsung Health permissions"
+                        android:textAllCaps="false"
+                        app:cornerRadius="14dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnGrantScreenTimeAccess"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:textColor="@color/accent_teal" app:strokeColor="@color/card_stroke"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:layout_marginTop="8dp"
+                        android:text="Manage screen-time access"
+                        android:textAllCaps="false"
+                        app:cornerRadius="14dp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/card_tint"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="0dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Sync your data"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvRangeLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Choose today or the historical range"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="13dp"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSyncNow"
+                        android:layout_width="0dp"
+                        android:layout_height="52dp"
+                        android:layout_marginEnd="6dp"
+                        android:layout_weight="1"
+                        android:text="Sync today"
+                        android:textColor="#0D2722"
+                        app:backgroundTint="@color/accent_teal"
+                        android:textAllCaps="false"
+                        app:cornerRadius="16dp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSyncHistorical"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:textColor="@color/accent_teal" app:strokeColor="@color/card_stroke"
+                        android:layout_width="0dp"
+                        android:layout_height="52dp"
+                        android:layout_marginStart="6dp"
+                        android:layout_weight="1"
+                        android:text="Last 25 days"
+                        android:textAllCaps="false"
+                        app:cornerRadius="16dp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvSyncResult"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="No sync run yet"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:id="@+id/tvError"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:textColor="@color/error"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="25dp"
+            android:text="Your snapshot"
+            android:textColor="@color/text_primary"
+            android:textSize="21sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvSnapshotSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:layout_marginBottom="10dp"
+            android:text="Run a sync to see your health and screen-time trends."
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <include layout="@layout/item_metric" android:id="@+id/metricSteps" />
+            <include layout="@layout/item_metric" android:id="@+id/metricWorkouts" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+            <include layout="@layout/item_metric" android:id="@+id/metricSleep" />
+            <include layout="@layout/item_metric" android:id="@+id/metricHeartRate" />
+        </LinearLayout>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+            <include layout="@layout/item_metric" android:id="@+id/metricScreenTime" />
+            <include layout="@layout/item_metric" android:id="@+id/metricApps" />
+        </LinearLayout>
+
+        <include
+            android:id="@+id/cardStepsChart"
+            layout="@layout/item_chart_card"
+            android:layout_marginTop="20dp" />
+        <include
+            android:id="@+id/cardHeartChart"
+            layout="@layout/item_chart_card"
+            android:layout_marginTop="12dp" />
+        <include
+            android:id="@+id/cardSleepChart"
+            layout="@layout/item_chart_card"
+            android:layout_marginTop="12dp" />
+        <include
+            android:id="@+id/cardScreenChart"
+            layout="@layout/item_chart_card"
+            android:layout_marginTop="12dp" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/card_surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/card_stroke"
+            app:strokeWidth="1dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Exercise sessions"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvExerciseSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Session metrics, samples, and route points"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+                <LinearLayout
+                    android:id="@+id/llExerciseList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnToggleExercises"
+                    style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/accent_teal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:text="Show all sessions"
+                    android:textAllCaps="false"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="@color/card_surface"
+            app:cardCornerRadius="22dp"
+            app:cardElevation="1dp"
+            app:strokeColor="@color/card_stroke"
+            app:strokeWidth="1dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="18dp">
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="App usage"
+                    android:textColor="@color/text_primary"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+                <TextView
+                    android:id="@+id/tvAppsSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="Foreground time, visibility, and daily details"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+                <LinearLayout
+                    android:id="@+id/llAppUsage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnToggleApps"
+                    style="@style/Widget.MaterialComponents.Button.TextButton" android:textColor="@color/accent_teal"
+                    android:layout_width="wrap_content"
+                    android:layout_height="44dp"
+                    android:text="Show all apps"
+                    android:textAllCaps="false"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRawJson"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton" android:textColor="@color/accent_teal" app:strokeColor="@color/card_stroke"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="16dp"
+            android:text="Explore raw JSON"
+            android:textAllCaps="false"
+            android:visibility="gone"
+            app:cornerRadius="17dp"
+            app:icon="@android:drawable/ic_menu_view"
+            app:iconGravity="textStart"
+            app:iconPadding="10dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:gravity="center"
-            android:layout_marginBottom="24dp" />
-
-        <!-- Status Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Status"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvConnectionStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Samsung Health: Checking…"
-            android:textSize="16sp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Permissions Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Permissions"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvPermSteps"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Steps: —"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/tvPermHeartRate"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Heart Rate: —"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/tvPermSleep"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Sleep: —"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/tvPermExercise"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Exercise: —"
-            android:textSize="14sp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Request Permissions Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnRequestPermissions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Request Permissions"
-            android:layout_marginBottom="8dp" />
-
-        <!-- Sync Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Last Sync"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvLastSync"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Never"
-            android:textSize="14sp"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Sync Now Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnSyncNow"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Sync Now"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Data Summary Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Data Summary"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvDataSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="No data retrieved yet."
-            android:textSize="14sp"
-            android:fontFamily="monospace"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Sync Result Section -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Last Result"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginBottom="4dp" />
-
-        <TextView
-            android:id="@+id/tvSyncResult"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="—"
-            android:textSize="14sp"
-            android:fontFamily="monospace"
-            android:layout_marginBottom="16dp" />
-
-        <!-- Error Display -->
-        <TextView
-            android:id="@+id/tvError"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="13sp"
-            android:textColor="#D32F2F"
-            android:visibility="gone" />
-
+            android:text="Screen-time data stays on this device."
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp" />
     </LinearLayout>
 </ScrollView>

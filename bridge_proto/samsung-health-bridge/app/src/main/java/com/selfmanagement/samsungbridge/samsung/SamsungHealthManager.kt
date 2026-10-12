@@ -68,7 +68,7 @@ class SamsungHealthManager(
             val store = HealthDataService.getStore(context)
             healthDataStore = store
             permissionManager = SamsungPermissionManager(store)
-            healthReader = SamsungHealthReader(store)
+            healthReader = SamsungHealthReader(store, ScreenTimeReader(context))
             connectionState = ConnectionState.CONNECTED
             Log.d(TAG, "[SamsungHealth] Connected successfully")
             callback(true)
@@ -182,11 +182,18 @@ class SamsungHealthManager(
         endTimeMillis: Long,
         callback: (SamsungHealthReader.ReadAllResult) -> Unit
     ) {
+        readAll(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
+
+    fun readAll(
+        range: SyncTimeRange,
+        callback: (SamsungHealthReader.ReadAllResult) -> Unit
+    ) {
         val reader = healthReader ?: run {
             callback(SamsungHealthReader.ReadAllResult())
             return
         }
-        reader.readAll(startTimeMillis, endTimeMillis, callback)
+        reader.readAll(range, callback)
     }
 
     fun sync(

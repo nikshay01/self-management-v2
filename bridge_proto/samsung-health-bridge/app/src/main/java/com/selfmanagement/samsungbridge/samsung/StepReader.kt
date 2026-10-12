@@ -3,15 +3,13 @@ package com.selfmanagement.samsungbridge.samsung
 import android.util.Log
 import com.samsung.android.sdk.health.data.HealthDataStore
 import com.samsung.android.sdk.health.data.request.DataType
-import com.samsung.android.sdk.health.data.request.DataTypes
 import com.samsung.android.sdk.health.data.request.LocalTimeFilter
+import com.samsung.android.sdk.health.data.request.LocalTimeGroup
+import com.samsung.android.sdk.health.data.request.LocalTimeGroupUnit
 import com.selfmanagement.samsungbridge.models.StepsRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.ZoneId
 
 /**
  * Reads step count data from Samsung Health using Samsung Health Data SDK v1.1.0.
@@ -21,46 +19,64 @@ class StepReader(
 ) {
     companion object {
         private const val TAG = "StepReader"
+        private const val PAGE_SIZE = 100
+        private const val MAX_PAGES = 50
     }
 
-    /**
-     * Read step count records within the specified time range.
-     * In Samsung Health Data SDK, steps are retrieved via AggregateRequest (TOTAL) on DataTypes.STEPS.
-     */
     fun readSteps(
         startTimeMillis: Long,
         endTimeMillis: Long,
         callback: (List<StepsRecord>) -> Unit
     ) {
-        val startInstant = Instant.ofEpochMilli(startTimeMillis)
-        val endInstant = Instant.ofEpochMilli(endTimeMillis)
-        val zone = ZoneId.systemDefault()
-        val startLocal = LocalDateTime.ofInstant(startInstant, zone)
-        val endLocal = LocalDateTime.ofInstant(endInstant, zone)
+        readSteps(SyncTimeRange.fromEpochMillis(startTimeMillis, endTimeMillis), callback)
+    }
 
-        Log.d(TAG, "Reading steps from $startLocal to $endLocal")
+    /**
+     * Read daily step totals within [range] using [DataType.StepsType.TOTAL]
+     * with [LocalTimeFilter] and daily grouping.
+     */
+    fun readSteps(
+        range: SyncTimeRange,
+        callback: (List<StepsRecord>) -> Unit
+    ) {
+        Log.d(TAG, "Reading daily steps for range $range")
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val aggregateBuilder = DataType.StepsType.TOTAL.requestBuilder
-                val request = aggregateBuilder
-                    .setLocalTimeFilter(LocalTimeFilter.of(startLocal, endLocal))
-                    .build()
-
-                val response = healthDataStore.aggregateData(request)
+                val localTimeFilter = LocalTimeFilter.of(
+                    range.startDateTime,
+                    range.endDateTime,
+                    true,
+                    true
+                )
+                val localTimeGroup = LocalTimeGroup.of(LocalTimeGroupUnit.DAILY, 1)
                 val records = mutableListOf<StepsRecord>()
+                var pageToken: String? = null
+                var pages = 0
 
-                for (aggregated in response.dataList) {
-                    val count = aggregated.value?.toInt() ?: 0
-                    if (count > 0) {
-                        val recordStart = aggregated.startTime?.let { SamsungDataMapper.formatInstant(it) }
-                            ?: SamsungDataMapper.toIso8601(startTimeMillis)
-                        val recordEnd = aggregated.endTime?.let { SamsungDataMapper.formatInstant(it) }
-                            ?: SamsungDataMapper.toIso8601(endTimeMillis)
+                do {
+                    val builder = DataType.StepsType.TOTAL.requestBuilder
+                        .setLocalTimeFilterWithGroup(localTimeFilter, localTimeGroup)
+                        .setPageSize(PAGE_SIZE)
+                    if (!pageToken.isNullOrBlank()) {
+                        builder.setPageToken(pageToken)
+                    }
+
+                    val response = healthDataStore.aggregateData(builder.build())
+                    for (aggregated in response.dataList) {
+                        val count = aggregated.value?.toInt() ?: 0
+                        if (count <= 0) continue
+
+                        val dayStart = java.time.LocalDateTime.ofInstant(aggregated.startTime, range.zoneId)
+                        val dayEnd = java.time.LocalDateTime.ofInstant(aggregated.endTime, range.zoneId)
+
+                        val recordStart = SamsungDataMapper.formatLocalDateTime(dayStart, range.zoneId)
+                        val recordEnd = SamsungDataMapper.formatLocalDateTime(dayEnd, range.zoneId)
+                        val dayKey = dayStart.toLocalDate().toString()
 
                         records.add(
                             StepsRecord(
-                                sourceRecordId = "steps_${startTimeMillis}_${endTimeMillis}",
+                                sourceRecordId = "steps_$dayKey",
                                 sourceDevice = null,
                                 timestampStart = recordStart,
                                 timestampEnd = recordEnd,
@@ -71,19 +87,23 @@ class StepReader(
                             )
                         )
                     }
+                    pageToken = response.pageToken
+                    pages++
+                } while (!pageToken.isNullOrBlank() && pages < MAX_PAGES)
+
+                if (!pageToken.isNullOrBlank()) {
+                    Log.w(TAG, "Stopped after $MAX_PAGES pages; daily step results may be incomplete")
                 }
-                Log.d(TAG, "Retrieved ${records.size} step aggregate records")
+                records.sortBy { it.timestampStart }
+                Log.d(TAG, "Retrieved ${records.size} daily step records")
                 callback(records)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to read steps", e)
+                Log.e(TAG, "Failed to read steps for range $range", e)
                 callback(emptyList())
             }
         }
     }
 
-    /**
-     * Read total step count for the time range.
-     */
     fun readTotalSteps(
         startTimeMillis: Long,
         endTimeMillis: Long,

@@ -29,7 +29,9 @@ data class ExerciseRecord(
     /** Calories burned (kcal) */
     val caloriesKcal: Double?,
     /** Altitude gain in meters */
-    val altitudeGainM: Double?
+    val altitudeGainM: Double?,
+    /** Full SDK session details, including samples, route and sport-specific metrics when available. */
+    val sessionDetails: Map<String, Any?> = emptyMap()
 ) {
     /**
      * Convert to canonical [HealthRecord] for API transport.
@@ -43,6 +45,9 @@ data class ExerciseRecord(
         distanceM?.let { meta["distance_m"] = it }
         caloriesKcal?.let { meta["calories_kcal"] = it }
         altitudeGainM?.let { meta["altitude_gain_m"] = it }
+        if (sessionDetails.isNotEmpty()) {
+            meta["session_details"] = sessionDetails
+        }
 
         return HealthRecord(
             source = HealthRecord.SOURCE_SAMSUNG_HEALTH,

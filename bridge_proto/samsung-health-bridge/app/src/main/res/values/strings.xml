@@ -4,7 +4,9 @@
     <string name="permissions_label">Permissions</string>
     <string name="last_sync_label">Last Sync</string>
     <string name="btn_request_permissions">Request Permissions</string>
+    <string name="btn_grant_screen_time_access">Grant Screen Time Access</string>
     <string name="btn_sync_now">Sync Now</string>
+    <string name="btn_sync_historical">Sync Last 25 Days</string>
     <string name="status_disconnected">Disconnected</string>
     <string name="status_connected">Connected</string>
     <string name="status_unavailable">Samsung Health Unavailable</string>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="raw_json_categories">
+        <item>All data</item>
+        <item>Steps</item>
+        <item>Heart rate</item>
+        <item>Sleep</item>
+        <item>Exercise sessions</item>
+        <item>Screen time</item>
+    </string-array>
+</resources>

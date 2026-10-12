@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="dashboard_background">#101715</color>
+    <color name="card_surface">#19221F</color>
+    <color name="card_tint">#1E302B</color>
+    <color name="card_stroke">#2B3A35</color>
+    <color name="text_primary">#E4EEE9</color>
+    <color name="text_secondary">#A8B8B0</color>
+    <color name="accent_teal">#63D7C1</color>
+    <color name="chart_blue">#8DA8FF</color>
+    <color name="chart_orange">#FFC27E</color>
+    <color name="chart_purple">#C5A9F2</color>
+    <color name="error">#F2B8B5</color>
+</resources>

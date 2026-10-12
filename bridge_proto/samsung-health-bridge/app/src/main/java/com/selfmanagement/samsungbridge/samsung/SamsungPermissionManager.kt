@@ -23,12 +23,14 @@ class SamsungPermissionManager(
         val HEART_RATE_PERMISSION = Permission.of(DataTypes.HEART_RATE, AccessType.READ)
         val SLEEP_PERMISSION = Permission.of(DataTypes.SLEEP, AccessType.READ)
         val EXERCISE_PERMISSION = Permission.of(DataTypes.EXERCISE, AccessType.READ)
+        val EXERCISE_LOCATION_PERMISSION = Permission.of(DataTypes.EXERCISE_LOCATION, AccessType.READ)
 
         val ALL_PERMISSIONS: Set<Permission> = setOf(
             STEP_PERMISSION,
             HEART_RATE_PERMISSION,
             SLEEP_PERMISSION,
-            EXERCISE_PERMISSION
+            EXERCISE_PERMISSION,
+            EXERCISE_LOCATION_PERMISSION
         )
     }
 
@@ -43,19 +45,22 @@ class SamsungPermissionManager(
         val steps: PermissionStatus = PermissionStatus.UNKNOWN,
         val heartRate: PermissionStatus = PermissionStatus.UNKNOWN,
         val sleep: PermissionStatus = PermissionStatus.UNKNOWN,
-        val exercise: PermissionStatus = PermissionStatus.UNKNOWN
+        val exercise: PermissionStatus = PermissionStatus.UNKNOWN,
+        val exerciseLocation: PermissionStatus = PermissionStatus.UNKNOWN
     ) {
         val allGranted: Boolean
             get() = steps == PermissionStatus.GRANTED &&
                     heartRate == PermissionStatus.GRANTED &&
                     sleep == PermissionStatus.GRANTED &&
-                    exercise == PermissionStatus.GRANTED
+                    exercise == PermissionStatus.GRANTED &&
+                    exerciseLocation == PermissionStatus.GRANTED
 
         val anyDenied: Boolean
             get() = steps == PermissionStatus.DENIED ||
                     heartRate == PermissionStatus.DENIED ||
                     sleep == PermissionStatus.DENIED ||
-                    exercise == PermissionStatus.DENIED
+                    exercise == PermissionStatus.DENIED ||
+                    exerciseLocation == PermissionStatus.DENIED
     }
 
     /**
@@ -69,7 +74,8 @@ class SamsungPermissionManager(
                     steps = if (granted.contains(STEP_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
                     heartRate = if (granted.contains(HEART_RATE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
                     sleep = if (granted.contains(SLEEP_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
-                    exercise = if (granted.contains(EXERCISE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED
+                    exercise = if (granted.contains(EXERCISE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
+                    exerciseLocation = if (granted.contains(EXERCISE_LOCATION_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED
                 )
                 callback(state)
             } catch (e: Exception) {
@@ -93,7 +99,8 @@ class SamsungPermissionManager(
                     steps = if (granted.contains(STEP_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
                     heartRate = if (granted.contains(HEART_RATE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
                     sleep = if (granted.contains(SLEEP_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
-                    exercise = if (granted.contains(EXERCISE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED
+                    exercise = if (granted.contains(EXERCISE_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED,
+                    exerciseLocation = if (granted.contains(EXERCISE_LOCATION_PERMISSION)) PermissionStatus.GRANTED else PermissionStatus.DENIED
                 )
                 callback(state)
             } catch (e: Exception) {
